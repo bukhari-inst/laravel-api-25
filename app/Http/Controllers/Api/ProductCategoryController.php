@@ -41,7 +41,7 @@ class ProductCategoryController extends Controller
         try {
 
             $validatedData = $request->validate([
-                'name' => 'required|max:255',
+                'name' => 'required|max:255|unique:product_categories,name',
                 'description' => 'nullable|string',
             ]);
 
@@ -49,11 +49,15 @@ class ProductCategoryController extends Controller
 
             $productCategory = ProductCategory::create($validatedData);
 
-            $productCategory->products()->create($request->all());
-
             DB::commit();
-            return response()->json($productCategory, 201);
-        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Product category created successfully.',
+                'data' => $productCategory,
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->errors()], 422);
+        } catch (Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 403);
         }
@@ -67,12 +71,11 @@ class ProductCategoryController extends Controller
         try {
             $productCategory = ProductCategory::findOrFail($id);
 
-            if (!$productCategory) {
-                return response()->json(['message' => 'Product category not found'], 404);
-            }
-            return response()->json($productCategory);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 403);
+            return response()->json([
+                'data' => $productCategory,
+            ], 200);
+        } catch (Throwable $e) {
+            return response()->json(['message' => 'Product category not found'], 404);
         }
     }
 
@@ -88,6 +91,30 @@ class ProductCategoryController extends Controller
      */
     public function update(Request $request, string $id)
     {
+        try {
+            $productCategory = ProductCategory::findOrFail($id);
+
+            $validatedData = $request->validate([
+                'name' => 'required|max:255|unique:product_categories,name,' . $id,
+                'description' => 'nullable|string',
+            ]);
+
+            DB::beginTransaction();
+
+            $productCategory->update($validatedData);
+
+            DB::commit();
+            return response()->json([
+                'message' => 'Product category updated successfully.',
+                'data' => $productCategory,
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->errors()], 422);
+        } catch (Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 403);
+        }
     }
 
     /**
@@ -95,5 +122,20 @@ class ProductCategoryController extends Controller
      */
     public function destroy(string $id)
     {
+        try {
+            $productCategory = ProductCategory::findOrFail($id);
+
+            DB::beginTransaction();
+            $productCategory->delete();
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Product category deleted successfully.',
+                'data' => null,
+            ], 200);
+        } catch (Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 403);
+        }
     }
 }
